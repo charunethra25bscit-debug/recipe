@@ -1,144 +1,632 @@
-```html
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Recipe Finder</title>
-
-    <link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-
-    <!-- HEADER -->
-
-    <header>
-
-        <div class="logo">
-            🍴 Recipe Finder
-        </div>
-
-        <nav>
-            <a href="#" onclick="showHome()">Home</a>
-            <a href="#" onclick="showFavorites()">❤️ Favorites</a>
-        </nav>
-
-    </header>
+```javascript
+const API_URL =
+    "https://www.themealdb.com/api/json/v1/1/";
 
 
-    <!-- HOME -->
+// ==============================
+// LOAD POPULAR RECIPES
+// ==============================
 
-    <section class="hero">
+window.onload = function () {
 
-        <h1>Find Your Perfect Recipe 🍳</h1>
+    loadPopularRecipes();
 
-        <p>
-            Search for delicious recipes using ingredients or dish names.
-        </p>
+};
 
-        <div class="search-box">
 
-            <input
-                type="text"
-                id="searchInput"
-                placeholder="Search recipe e.g. chicken, pasta..."
+// ==============================
+// POPULAR RECIPES
+// ==============================
+
+async function loadPopularRecipes() {
+
+    const container =
+        document.getElementById("recipeContainer");
+
+    container.innerHTML =
+        `<p class="loading">Loading recipes...</p>`;
+
+    try {
+
+        const response = await fetch(
+            API_URL + "search.php?s=chicken"
+        );
+
+        const data = await response.json();
+
+        displayRecipes(data.meals);
+
+    }
+
+    catch (error) {
+
+        container.innerHTML =
+            `<p class="loading">
+                ❌ Unable to load recipes.
+            </p>`;
+
+    }
+
+}
+
+
+// ==============================
+// SEARCH RECIPES
+// ==============================
+
+async function searchRecipes() {
+
+    const search =
+        document
+        .getElementById("searchInput")
+        .value
+        .trim();
+
+    if (search === "") {
+
+        alert("Please enter a recipe name.");
+
+        return;
+    }
+
+    document.getElementById("sectionTitle")
+        .innerText =
+        "Search Results";
+
+    const container =
+        document.getElementById("recipeContainer");
+
+    container.innerHTML =
+        `<p class="loading">
+            🔍 Searching...
+        </p>`;
+
+    try {
+
+        const response = await fetch(
+            API_URL +
+            "search.php?s=" +
+            encodeURIComponent(search)
+        );
+
+        const data = await response.json();
+
+        if (!data.meals) {
+
+            container.innerHTML =
+                `<p class="loading">
+                    😔 No recipes found.
+                </p>`;
+
+            return;
+        }
+
+        displayRecipes(data.meals);
+
+    }
+
+    catch (error) {
+
+        container.innerHTML =
+            `<p class="loading">
+                ❌ Something went wrong.
+            </p>`;
+
+    }
+
+}
+
+
+// ==============================
+// CATEGORY SEARCH
+// ==============================
+
+async function searchByCategory(category) {
+
+    document.getElementById("sectionTitle")
+        .innerText =
+        category + " Recipes";
+
+    const container =
+        document.getElementById("recipeContainer");
+
+    container.innerHTML =
+        `<p class="loading">
+            🔍 Loading ${category} recipes...
+        </p>`;
+
+    try {
+
+        const response = await fetch(
+            API_URL +
+            "filter.php?c=" +
+            encodeURIComponent(category)
+        );
+
+        const data = await response.json();
+
+        if (!data.meals) {
+
+            container.innerHTML =
+                `<p class="loading">
+                    No recipes found.
+                </p>`;
+
+            return;
+        }
+
+        displayRecipes(data.meals);
+
+    }
+
+    catch (error) {
+
+        container.innerHTML =
+            `<p class="loading">
+                ❌ Unable to load recipes.
+            </p>`;
+
+    }
+
+}
+
+
+// ==============================
+// DISPLAY RECIPES
+// ==============================
+
+function displayRecipes(meals) {
+
+    const container =
+        document.getElementById("recipeContainer");
+
+    container.innerHTML = "";
+
+    meals.forEach(meal => {
+
+        const card =
+            document.createElement("div");
+
+        card.className =
+            "recipe-card";
+
+        card.innerHTML = `
+
+            <img
+                src="${meal.strMealThumb}"
+                alt="${meal.strMeal}"
             >
 
-            <button onclick="searchRecipes()">
-                🔍 Search
-            </button>
+            <div class="card-content">
 
-        </div>
+                <h3>
+                    ${meal.strMeal}
+                </h3>
 
-    </section>
+                <p>
+                    🍽 ${meal.strCategory || "Recipe"}
+                </p>
+
+                <div class="card-buttons">
+
+                    <button
+                        class="view-btn"
+                        onclick="getRecipeDetails('${meal.idMeal}')">
+
+                        View Recipe
+
+                    </button>
+
+                    <button
+                        class="favorite-btn"
+                        onclick="saveFavorite('${meal.idMeal}')">
+
+                        ❤️
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        `;
+
+        container.appendChild(card);
+
+    });
+
+}
 
 
-    <!-- FILTERS -->
+// ==============================
+// RECIPE DETAILS
+// ==============================
 
-    <section class="filters">
+async function getRecipeDetails(id) {
 
-        <button onclick="searchByCategory('Chicken')">
-            🍗 Chicken
-        </button>
+    try {
 
-        <button onclick="searchByCategory('Beef')">
-            🥩 Beef
-        </button>
+        const response = await fetch(
+            API_URL +
+            "lookup.php?i=" +
+            id
+        );
 
-        <button onclick="searchByCategory('Vegetarian')">
-            🥗 Vegetarian
-        </button>
+        const data =
+            await response.json();
 
-        <button onclick="searchByCategory('Pasta')">
-            🍝 Pasta
-        </button>
+        const meal =
+            data.meals[0];
 
-        <button onclick="searchByCategory('Dessert')">
-            🍰 Dessert
-        </button>
+        showRecipeDetails(meal);
 
-    </section>
+    }
+
+    catch (error) {
+
+        alert(
+            "Unable to load recipe details."
+        );
+
+    }
+
+}
 
 
-    <!-- RECIPE LIST -->
+// ==============================
+// SHOW DETAILS
+// ==============================
 
-    <main>
+function showRecipeDetails(meal) {
 
-        <h2 id="sectionTitle">
-            Popular Recipes
+    let ingredients = [];
+
+    for (let i = 1; i <= 20; i++) {
+
+        const ingredient =
+            meal["strIngredient" + i];
+
+        const measure =
+            meal["strMeasure" + i];
+
+        if (
+            ingredient &&
+            ingredient.trim() !== ""
+        ) {
+
+            ingredients.push(
+                `<li>
+                    ${measure || ""}
+                    ${ingredient}
+                </li>`
+            );
+
+        }
+
+    }
+
+
+    const modal =
+        document.getElementById("recipeModal");
+
+    const details =
+        document.getElementById("recipeDetails");
+
+
+    details.innerHTML = `
+
+        <img
+            src="${meal.strMealThumb}"
+            alt="${meal.strMeal}"
+        >
+
+        <h2>
+            ${meal.strMeal}
         </h2>
 
-        <div id="recipeContainer">
+        <p>
+            <strong>Category:</strong>
+            ${meal.strCategory || "Not available"}
+        </p>
 
+        <p>
+            <strong>Area:</strong>
+            ${meal.strArea || "Not available"}
+        </p>
+
+        <h3>
+            🥕 Ingredients
+        </h3>
+
+        <ul>
+            ${ingredients.join("")}
+        </ul>
+
+        <h3>
+            👨‍🍳 Instructions
+        </h3>
+
+        <p class="instructions">
+            ${meal.strInstructions}
+        </p>
+
+        ${
+            meal.strYoutube
+            ?
+            `
+            <h3>
+                🎥 Video Tutorial
+            </h3>
+
+            <a
+                href="${meal.strYoutube}"
+                target="_blank">
+
+                Watch on YouTube
+
+            </a>
+            `
+            :
+            ""
+        }
+
+        <br><br>
+
+        <button
+            class="view-btn"
+            onclick="shareRecipe('${meal.strMeal}')">
+
+            🔗 Share Recipe
+
+        </button>
+
+    `;
+
+
+    modal.style.display =
+        "block";
+
+}
+
+
+// ==============================
+// CLOSE MODAL
+// ==============================
+
+function closeModal() {
+
+    document.getElementById(
+        "recipeModal"
+    ).style.display = "none";
+
+}
+
+
+// Close when clicking outside
+
+window.onclick = function(event) {
+
+    const modal =
+        document.getElementById(
+            "recipeModal"
+        );
+
+    if (event.target === modal) {
+
+        modal.style.display =
+            "none";
+
+    }
+
+};
+
+
+// ==============================
+// FAVORITES
+// ==============================
+
+function saveFavorite(id) {
+
+    let favorites =
+        JSON.parse(
+            localStorage.getItem(
+                "favorites"
+            )
+        ) || [];
+
+
+    if (!favorites.includes(id)) {
+
+        favorites.push(id);
+
+        localStorage.setItem(
+            "favorites",
+            JSON.stringify(favorites)
+        );
+
+        alert(
+            "❤️ Recipe saved to Favorites!"
+        );
+
+    }
+
+    else {
+
+        alert(
+            "Recipe is already in Favorites."
+        );
+
+    }
+
+}
+
+
+// ==============================
+// SHOW FAVORITES
+// ==============================
+
+async function showFavorites() {
+
+    document.getElementById(
+        "sectionTitle"
+    ).innerText =
+        "❤️ My Favorite Recipes";
+
+
+    const favorites =
+        JSON.parse(
+            localStorage.getItem(
+                "favorites"
+            )
+        ) || [];
+
+
+    const container =
+        document.getElementById(
+            "recipeContainer"
+        );
+
+
+    if (favorites.length === 0) {
+
+        container.innerHTML =
+            `
             <p class="loading">
-                Loading recipes...
+                You haven't saved any recipes yet ❤️
             </p>
+            `;
 
-        </div>
+        return;
 
-    </main>
-
-
-    <!-- RECIPE DETAILS -->
-
-    <div id="recipeModal" class="modal">
-
-        <div class="modal-content">
-
-            <span
-                class="close"
-                onclick="closeModal()">
-                &times;
-            </span>
-
-            <div id="recipeDetails"></div>
-
-        </div>
-
-    </div>
+    }
 
 
-    <!-- FOOTER -->
-
-    <footer>
-
-        <p>
-            © 2026 Recipe Finder
-        </p>
-
-        <p>
-            Built with HTML, CSS & JavaScript
-        </p>
-
-    </footer>
+    container.innerHTML =
+        `<p class="loading">
+            Loading favorites...
+        </p>`;
 
 
-    <script src="script.js"></script>
+    let meals = [];
 
-</body>
 
-</html>
+    for (const id of favorites) {
+
+        try {
+
+            const response =
+                await fetch(
+                    API_URL +
+                    "lookup.php?i=" +
+                    id
+                );
+
+            const data =
+                await response.json();
+
+            if (data.meals) {
+
+                meals.push(
+                    data.meals[0]
+                );
+
+            }
+
+        }
+
+        catch (error) {
+
+            console.log(error);
+
+        }
+
+    }
+
+
+    displayRecipes(meals);
+
+}
+
+
+// ==============================
+// HOME
+// ==============================
+
+function showHome() {
+
+    document.getElementById(
+        "sectionTitle"
+    ).innerText =
+        "Popular Recipes";
+
+    loadPopularRecipes();
+
+}
+
+
+// ==============================
+// SHARE
+// ==============================
+
+async function shareRecipe(name) {
+
+    const shareData = {
+
+        title: name,
+
+        text:
+            "Check out this delicious recipe: " +
+            name,
+
+        url:
+            window.location.href
+
+    };
+
+
+    if (
+        navigator.share
+    ) {
+
+        try {
+
+            await navigator.share(
+                shareData
+            );
+
+        }
+
+        catch (error) {
+
+            console.log(error);
+
+        }
+
+    }
+
+    else {
+
+        try {
+
+            await navigator.clipboard.writeText(
+                window.location.href
+            );
+
+            alert(
+                "🔗 Recipe link copied!"
+            );
+
+        }
+
+        catch (error) {
+
+            alert(
+                "Copy the website URL to share this recipe."
+            );
+
+        }
+
+    }
+
+}
 ```
