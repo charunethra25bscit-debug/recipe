@@ -1,0 +1,144 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Recipe Finder</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- HEADER -->
+
+    <header>
+
+        <div class="logo">
+            🍴 Recipe Finder
+        </div>
+
+        <nav>
+            <a href="#" onclick="showHome()">Home</a>
+            <a href="#" onclick="showFavorites()">❤️ Favorites</a>
+        </nav>
+
+    </header>
+
+
+    <!-- HOME -->
+
+    <section class="hero">
+
+        <h1>Find Your Perfect Recipe 🍳</h1>
+
+        <p>
+            Search for delicious recipes using ingredients or dish names.
+        </p>
+
+        <div class="search-box">
+
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search recipe e.g. chicken, pasta..."
+            >
+
+            <button onclick="searchRecipes()">
+                🔍 Search
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- FILTERS -->
+
+    <section class="filters">
+
+        <button onclick="searchByCategory('Chicken')">
+            🍗 Chicken
+        </button>
+
+        <button onclick="searchByCategory('Beef')">
+            🥩 Beef
+        </button>
+
+        <button onclick="searchByCategory('Vegetarian')">
+            🥗 Vegetarian
+        </button>
+
+        <button onclick="searchByCategory('Pasta')">
+            🍝 Pasta
+        </button>
+
+        <button onclick="searchByCategory('Dessert')">
+            🍰 Dessert
+        </button>
+
+    </section>
+
+
+    <!-- RECIPE LIST -->
+
+    <main>
+
+        <h2 id="sectionTitle">
+            Popular Recipes
+        </h2>
+
+        <div id="recipeContainer">
+
+            <p class="loading">
+                Loading recipes...
+            </p>
+
+        </div>
+
+    </main>
+
+
+    <!-- RECIPE DETAILS -->
+
+    <div id="recipeModal" class="modal">
+
+        <div class="modal-content">
+
+            <span
+                class="close"
+                onclick="closeModal()">
+                &times;
+            </span>
+
+            <div id="recipeDetails"></div>
+
+        </div>
+
+    </div>
+
+
+    <!-- FOOTER -->
+
+    <footer>
+
+        <p>
+            © 2026 Recipe Finder
+        </p>
+
+        <p>
+            Built with HTML, CSS & JavaScript
+        </p>
+
+    </footer>
+
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
+```
