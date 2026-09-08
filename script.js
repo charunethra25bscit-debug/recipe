@@ -1,304 +1,1084 @@
 ```javascript
-const API_URL =
-    "https://www.themealdb.com/api/json/v1/1/";
+/* =========================================================
+   RECIPE FINDER
+   Main JavaScript file
+   ========================================================= */
 
 
-// ==============================
-// LOAD POPULAR RECIPES
-// ==============================
+/* ================= API CONFIGURATION ================= */
 
-window.onload = function () {
-
-    loadPopularRecipes();
-
-};
+const API_BASE =
+    "https://www.themealdb.com/api/json/v1/1";
 
 
-// ==============================
-// POPULAR RECIPES
-// ==============================
+/* ================= DOM ELEMENTS ================= */
+
+const searchForm =
+    document.getElementById("searchForm");
+
+const searchInput =
+    document.getElementById("searchInput");
+
+const clearBtn =
+    document.getElementById("clearBtn");
+
+const recipeContainer =
+    document.getElementById("recipeContainer");
+
+const categoryList =
+    document.getElementById("categoryList");
+
+const resultsTitle =
+    document.getElementById("resultsTitle");
+
+const resultsCount =
+    document.getElementById("resultsCount");
+
+const loading =
+    document.getElementById("loading");
+
+const emptyMessage =
+    document.getElementById("emptyMessage");
+
+const errorMessage =
+    document.getElementById("errorMessage");
+
+const errorText =
+    document.getElementById("errorText");
+
+const recipeModal =
+    document.getElementById("recipeModal");
+
+const recipeDetails =
+    document.getElementById("recipeDetails");
+
+const modalClose =
+    document.getElementById("modalClose");
+
+const modalOverlay =
+    document.getElementById("modalOverlay");
+
+const homeBtn =
+    document.getElementById("homeBtn");
+
+const favoritesBtn =
+    document.getElementById("favoritesBtn");
+
+const randomBtn =
+    document.getElementById("randomBtn");
+
+const toast =
+    document.getElementById("toast");
+
+const toastMessage =
+    document.getElementById("toastMessage");
+
+const toastIcon =
+    document.getElementById("toastIcon");
+
+
+/* ================= APPLICATION STATE ================= */
+
+let currentMeals = [];
+
+let currentCategory = "All";
+
+let favoriteIds =
+    JSON.parse(
+        localStorage.getItem("recipeFavorites")
+    ) || [];
+
+
+/* ================= INITIALIZATION ================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    initializeApp
+);
+
+
+async function initializeApp() {
+
+    setupEventListeners();
+
+    await loadCategories();
+
+    await loadPopularRecipes();
+
+}
+
+
+/* ================= EVENT LISTENERS ================= */
+
+function setupEventListeners() {
+
+    /* Search */
+
+    searchForm.addEventListener(
+        "submit",
+        function (event) {
+
+            event.preventDefault();
+
+            searchRecipes();
+
+        }
+    );
+
+
+    /* Search input */
+
+    searchInput.addEventListener(
+        "input",
+        function () {
+
+            clearBtn.style.display =
+                searchInput.value
+                    ? "block"
+                    : "none";
+
+        }
+    );
+
+
+    /* Clear search */
+
+    clearBtn.addEventListener(
+        "click",
+        function () {
+
+            searchInput.value = "";
+
+            clearBtn.style.display =
+                "none";
+
+            searchInput.focus();
+
+        }
+    );
+
+
+    /* Home */
+
+    homeBtn.addEventListener(
+        "click",
+        showHome
+    );
+
+
+    /* Favorites */
+
+    favoritesBtn.addEventListener(
+        "click",
+        showFavorites
+    );
+
+
+    /* Random */
+
+    randomBtn.addEventListener(
+        "click",
+        loadRandomRecipe
+    );
+
+
+    /* Modal close */
+
+    modalClose.addEventListener(
+        "click",
+        closeModal
+    );
+
+
+    modalOverlay.addEventListener(
+        "click",
+        closeModal
+    );
+
+
+    /* Escape key */
+
+    document.addEventListener(
+        "keydown",
+        function (event) {
+
+            if (
+                event.key === "Escape"
+            ) {
+
+                closeModal();
+
+            }
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   API HELPER
+   ========================================================= */
+
+async function fetchAPI(endpoint) {
+
+    const response =
+        await fetch(
+            `${API_BASE}/${endpoint}`
+        );
+
+
+    if (!response.ok) {
+
+        throw new Error(
+            "API request failed."
+        );
+
+    }
+
+
+    return await response.json();
+
+}
+
+
+/* =========================================================
+   CATEGORIES
+   ========================================================= */
+
+async function loadCategories() {
+
+    try {
+
+        const data =
+            await fetchAPI(
+                "categories.php"
+            );
+
+
+        if (
+            !data.categories
+        ) {
+
+            return;
+
+        }
+
+
+        data.categories
+            .forEach(category => {
+
+                const button =
+                    document.createElement(
+                        "button"
+                    );
+
+                button.type = "button";
+
+                button.className =
+                    "category-btn";
+
+                button.dataset.category =
+                    category.strCategory;
+
+                button.textContent =
+                    `${getCategoryEmoji(
+                        category.strCategory
+                    )} ${category.strCategory}`;
+
+
+                button.addEventListener(
+                    "click",
+                    function () {
+
+                        selectCategory(
+                            category.strCategory,
+                            button
+                        );
+
+                    }
+                );
+
+
+                categoryList.appendChild(
+                    button
+                );
+
+            });
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Category loading error:",
+            error
+        );
+
+    }
+
+}
+
+
+/* ================= CATEGORY SELECT ================= */
+
+async function selectCategory(
+    category,
+    clickedButton
+) {
+
+    currentCategory =
+        category;
+
+
+    document
+        .querySelectorAll(
+            ".category-btn"
+        )
+        .forEach(button => {
+
+            button.classList.remove(
+                "active"
+            );
+
+        });
+
+
+    clickedButton.classList.add(
+        "active"
+    );
+
+
+    if (category === "All") {
+
+        await loadPopularRecipes();
+
+        return;
+
+    }
+
+
+    resultsTitle.textContent =
+        `${category} Recipes`;
+
+
+    showLoading();
+
+
+    try {
+
+        const data =
+            await fetchAPI(
+                `filter.php?c=${encodeURIComponent(
+                    category
+                )}`
+            );
+
+
+        if (!data.meals) {
+
+            showEmpty();
+
+            return;
+
+        }
+
+
+        currentMeals =
+            data.meals;
+
+
+        displayRecipes(
+            data.meals
+        );
+
+    }
+
+    catch (error) {
+
+        showError(
+            "Unable to load category recipes."
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   POPULAR RECIPES
+   ========================================================= */
 
 async function loadPopularRecipes() {
 
-    const container =
-        document.getElementById("recipeContainer");
+    currentCategory =
+        "All";
 
-    container.innerHTML =
-        `<p class="loading">Loading recipes...</p>`;
+
+    setActiveCategory(
+        "All"
+    );
+
+
+    resultsTitle.textContent =
+        "Popular Recipes";
+
+
+    showLoading();
+
 
     try {
 
-        const response = await fetch(
-            API_URL + "search.php?s=chicken"
+        /*
+         * The free API does not provide a
+         * general "popular" endpoint in V1.
+         *
+         * We use chicken as the initial
+         * discovery collection.
+         */
+
+        const data =
+            await fetchAPI(
+                "filter.php?c=Chicken"
+            );
+
+
+        if (!data.meals) {
+
+            showEmpty();
+
+            return;
+
+        }
+
+
+        currentMeals =
+            data.meals;
+
+
+        displayRecipes(
+            data.meals
         );
-
-        const data = await response.json();
-
-        displayRecipes(data.meals);
 
     }
 
     catch (error) {
 
-        container.innerHTML =
-            `<p class="loading">
-                ❌ Unable to load recipes.
-            </p>`;
+        showError(
+            "Unable to load recipes. Please check your internet connection."
+        );
 
     }
 
 }
 
 
-// ==============================
-// SEARCH RECIPES
-// ==============================
+/* =========================================================
+   SEARCH
+   ========================================================= */
 
 async function searchRecipes() {
 
-    const search =
-        document
-        .getElementById("searchInput")
-        .value
-        .trim();
+    const query =
+        searchInput.value.trim();
 
-    if (search === "") {
 
-        alert("Please enter a recipe name.");
+    if (!query) {
+
+        showToast(
+            "Please enter a recipe name.",
+            "⚠️"
+        );
+
+        searchInput.focus();
 
         return;
+
     }
 
-    document.getElementById("sectionTitle")
-        .innerText =
-        "Search Results";
 
-    const container =
-        document.getElementById("recipeContainer");
+    resultsTitle.textContent =
+        `Search Results for "${query}"`;
 
-    container.innerHTML =
-        `<p class="loading">
-            🔍 Searching...
-        </p>`;
+
+    showLoading();
+
 
     try {
-
-        const response = await fetch(
-            API_URL +
-            "search.php?s=" +
-            encodeURIComponent(search)
-        );
-
-        const data = await response.json();
-
-        if (!data.meals) {
-
-            container.innerHTML =
-                `<p class="loading">
-                    😔 No recipes found.
-                </p>`;
-
-            return;
-        }
-
-        displayRecipes(data.meals);
-
-    }
-
-    catch (error) {
-
-        container.innerHTML =
-            `<p class="loading">
-                ❌ Something went wrong.
-            </p>`;
-
-    }
-
-}
-
-
-// ==============================
-// CATEGORY SEARCH
-// ==============================
-
-async function searchByCategory(category) {
-
-    document.getElementById("sectionTitle")
-        .innerText =
-        category + " Recipes";
-
-    const container =
-        document.getElementById("recipeContainer");
-
-    container.innerHTML =
-        `<p class="loading">
-            🔍 Loading ${category} recipes...
-        </p>`;
-
-    try {
-
-        const response = await fetch(
-            API_URL +
-            "filter.php?c=" +
-            encodeURIComponent(category)
-        );
-
-        const data = await response.json();
-
-        if (!data.meals) {
-
-            container.innerHTML =
-                `<p class="loading">
-                    No recipes found.
-                </p>`;
-
-            return;
-        }
-
-        displayRecipes(data.meals);
-
-    }
-
-    catch (error) {
-
-        container.innerHTML =
-            `<p class="loading">
-                ❌ Unable to load recipes.
-            </p>`;
-
-    }
-
-}
-
-
-// ==============================
-// DISPLAY RECIPES
-// ==============================
-
-function displayRecipes(meals) {
-
-    const container =
-        document.getElementById("recipeContainer");
-
-    container.innerHTML = "";
-
-    meals.forEach(meal => {
-
-        const card =
-            document.createElement("div");
-
-        card.className =
-            "recipe-card";
-
-        card.innerHTML = `
-
-            <img
-                src="${meal.strMealThumb}"
-                alt="${meal.strMeal}"
-            >
-
-            <div class="card-content">
-
-                <h3>
-                    ${meal.strMeal}
-                </h3>
-
-                <p>
-                    🍽 ${meal.strCategory || "Recipe"}
-                </p>
-
-                <div class="card-buttons">
-
-                    <button
-                        class="view-btn"
-                        onclick="getRecipeDetails('${meal.idMeal}')">
-
-                        View Recipe
-
-                    </button>
-
-                    <button
-                        class="favorite-btn"
-                        onclick="saveFavorite('${meal.idMeal}')">
-
-                        ❤️
-
-                    </button>
-
-                </div>
-
-            </div>
-
-        `;
-
-        container.appendChild(card);
-
-    });
-
-}
-
-
-// ==============================
-// RECIPE DETAILS
-// ==============================
-
-async function getRecipeDetails(id) {
-
-    try {
-
-        const response = await fetch(
-            API_URL +
-            "lookup.php?i=" +
-            id
-        );
 
         const data =
-            await response.json();
+            await fetchAPI(
+                `search.php?s=${encodeURIComponent(
+                    query
+                )}`
+            );
+
+
+        if (!data.meals) {
+
+            currentMeals = [];
+
+            showEmpty();
+
+            return;
+
+        }
+
+
+        currentMeals =
+            data.meals;
+
+
+        displayRecipes(
+            data.meals
+        );
+
+    }
+
+    catch (error) {
+
+        showError(
+            "Search failed. Please try again."
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   DISPLAY RECIPES
+   ========================================================= */
+
+function displayRecipes(
+    meals
+) {
+
+    hideAllMessages();
+
+
+    recipeContainer.innerHTML =
+        "";
+
+
+    if (
+        !meals ||
+        meals.length === 0
+    ) {
+
+        showEmpty();
+
+        return;
+
+    }
+
+
+    resultsCount.textContent =
+        `${meals.length} recipe${
+            meals.length === 1
+                ? ""
+                : "s"
+        }`;
+
+
+    meals.forEach(
+        meal => {
+
+            const card =
+                createRecipeCard(
+                    meal
+                );
+
+
+            recipeContainer.appendChild(
+                card
+            );
+
+        }
+    );
+
+}
+
+
+/* =========================================================
+   CREATE RECIPE CARD
+   ========================================================= */
+
+function createRecipeCard(
+    meal
+) {
+
+    const card =
+        document.createElement(
+            "article"
+        );
+
+
+    card.className =
+        "recipe-card";
+
+
+    const saved =
+        favoriteIds.includes(
+            meal.idMeal
+        );
+
+
+    const category =
+        meal.strCategory ||
+        "Recipe";
+
+
+    const area =
+        meal.strArea ||
+        "International";
+
+
+    card.innerHTML = `
+
+        <div class="recipe-image-wrapper">
+
+            <img
+                class="recipe-image"
+                src="${escapeHTML(
+                    meal.strMealThumb
+                )}"
+                alt="${escapeHTML(
+                    meal.strMeal
+                )}"
+                loading="lazy"
+            >
+
+            <button
+                type="button"
+                class="favorite-icon ${
+                    saved
+                        ? "saved"
+                        : ""
+                }"
+                aria-label="Save favorite"
+                data-favorite-id="${
+                    meal.idMeal
+                }">
+
+                ${
+                    saved
+                        ? "♥"
+                        : "♡"
+                }
+
+            </button>
+
+        </div>
+
+
+        <div class="card-content">
+
+            <p class="card-category">
+                ${escapeHTML(
+                    category
+                )}
+            </p>
+
+            <h3 class="card-title">
+                ${escapeHTML(
+                    meal.strMeal
+                )}
+            </h3>
+
+            <p class="card-area">
+                🌍 ${escapeHTML(
+                    area
+                )}
+            </p>
+
+            <button
+                type="button"
+                class="view-recipe-btn"
+                data-recipe-id="${
+                    meal.idMeal
+                }">
+
+                View Recipe →
+
+            </button>
+
+        </div>
+
+    `;
+
+
+    /* Favorite button */
+
+    const favoriteButton =
+        card.querySelector(
+            ".favorite-icon"
+        );
+
+
+    favoriteButton.addEventListener(
+        "click",
+        function () {
+
+            toggleFavorite(
+                meal.idMeal,
+                favoriteButton
+            );
+
+        }
+    );
+
+
+    /* Details button */
+
+    const detailsButton =
+        card.querySelector(
+            ".view-recipe-btn"
+        );
+
+
+    detailsButton.addEventListener(
+        "click",
+        function () {
+
+            openRecipeDetails(
+                meal.idMeal
+            );
+
+        }
+    );
+
+
+    return card;
+
+}
+
+
+/* =========================================================
+   RECIPE DETAILS
+   ========================================================= */
+
+async function openRecipeDetails(
+    mealId
+) {
+
+    showModalLoading();
+
+
+    try {
+
+        const data =
+            await fetchAPI(
+                `lookup.php?i=${encodeURIComponent(
+                    mealId
+                )}`
+            );
+
+
+        if (
+            !data.meals ||
+            !data.meals[0]
+        ) {
+
+            showModalError();
+
+            return;
+
+        }
+
 
         const meal =
             data.meals[0];
 
-        showRecipeDetails(meal);
+
+        renderRecipeDetails(
+            meal
+        );
 
     }
 
     catch (error) {
 
-        alert(
-            "Unable to load recipe details."
+        console.error(
+            error
         );
+
+        showModalError();
 
     }
 
 }
 
 
-// ==============================
-// SHOW DETAILS
-// ==============================
+/* =========================================================
+   RENDER DETAILS
+   ========================================================= */
 
-function showRecipeDetails(meal) {
+function renderRecipeDetails(
+    meal
+) {
 
-    let ingredients = [];
+    const ingredients =
+        getIngredients(
+            meal
+        );
 
-    for (let i = 1; i <= 20; i++) {
+
+    const isSaved =
+        favoriteIds.includes(
+            meal.idMeal
+        );
+
+
+    recipeDetails.innerHTML = `
+
+        <img
+            class="details-image"
+            src="${escapeHTML(
+                meal.strMealThumb
+            )}"
+            alt="${escapeHTML(
+                meal.strMeal
+            )}"
+        >
+
+
+        <div class="details-content">
+
+            <p class="small-title">
+                RECIPE DETAILS
+            </p>
+
+
+            <h2>
+                ${escapeHTML(
+                    meal.strMeal
+                )}
+            </h2>
+
+
+            <div class="details-meta">
+
+                <span class="meta-tag">
+                    🍽️ ${
+                        escapeHTML(
+                            meal.strCategory ||
+                            "Recipe"
+                        )
+                    }
+                </span>
+
+                <span class="meta-tag">
+                    🌍 ${
+                        escapeHTML(
+                            meal.strArea ||
+                            "International"
+                        )
+                    }
+                </span>
+
+                ${
+                    meal.strTags
+                    ?
+                    `
+                    <span class="meta-tag">
+                        🏷️ ${
+                            escapeHTML(
+                                meal.strTags
+                            )
+                        }
+                    </span>
+                    `
+                    :
+                    ""
+                }
+
+            </div>
+
+
+            <h3>
+                🥕 Ingredients
+            </h3>
+
+
+            <ul class="ingredients-list">
+
+                ${
+                    ingredients
+                        .map(
+                            item =>
+                                `<li>
+                                    ${escapeHTML(
+                                        item
+                                    )}
+                                </li>`
+                        )
+                        .join("")
+                }
+
+            </ul>
+
+
+            <h3>
+                👨‍🍳 Cooking Instructions
+            </h3>
+
+
+            <p class="instructions">
+                ${escapeHTML(
+                    meal.strInstructions ||
+                    "Instructions are not available."
+                )}
+            </p>
+
+
+            <div class="details-actions">
+
+                <button
+                    type="button"
+                    class="action-btn"
+                    id="detailFavoriteBtn">
+
+                    ${
+                        isSaved
+                            ? "♥ Remove Favorite"
+                            : "♡ Save Favorite"
+                    }
+
+                </button>
+
+
+                <button
+                    type="button"
+                    class="action-btn secondary"
+                    id="shareBtn">
+
+                    🔗 Share Recipe
+
+                </button>
+
+
+                ${
+                    meal.strYoutube
+                    ?
+                    `
+                    <a
+                        class="action-btn secondary"
+                        href="${escapeHTML(
+                            meal.strYoutube
+                        )}"
+                        target="_blank"
+                        rel="noopener noreferrer">
+
+                        🎥 Watch Video
+
+                    </a>
+                    `
+                    :
+                    ""
+                }
+
+            </div>
+
+        </div>
+
+    `;
+
+
+    /* Favorite */
+
+    document
+        .getElementById(
+            "detailFavoriteBtn"
+        )
+        .addEventListener(
+            "click",
+            function () {
+
+                toggleFavorite(
+                    meal.idMeal,
+                    null
+                );
+
+
+                renderRecipeDetails(
+                    meal
+                );
+
+            }
+        );
+
+
+    /* Share */
+
+    document
+        .getElementById(
+            "shareBtn"
+        )
+        .addEventListener(
+            "click",
+            function () {
+
+                shareRecipe(
+                    meal
+                );
+
+            }
+        );
+
+}
+
+
+/* =========================================================
+   INGREDIENT EXTRACTION
+   ========================================================= */
+
+function getIngredients(
+    meal
+) {
+
+    const ingredients = [];
+
+
+    for (
+        let i = 1;
+        i <= 20;
+        i++
+    ) {
 
         const ingredient =
-            meal["strIngredient" + i];
+            meal[
+                `strIngredient${i}`
+            ];
+
 
         const measure =
-            meal["strMeasure" + i];
+            meal[
+                `strMeasure${i}`
+            ];
+
 
         if (
             ingredient &&
-            ingredient.trim() !== ""
+            ingredient.trim()
         ) {
 
+            const cleanIngredient =
+                ingredient.trim();
+
+
+            const cleanMeasure =
+                measure
+                    ? measure.trim()
+                    : "";
+
+
             ingredients.push(
-                `<li>
-                    ${measure || ""}
-                    ${ingredient}
-                </li>`
+                cleanMeasure
+                    ?
+                    `${cleanMeasure} — ${cleanIngredient}`
+                    :
+                    cleanIngredient
             );
 
         }
@@ -306,283 +1086,285 @@ function showRecipeDetails(meal) {
     }
 
 
-    const modal =
-        document.getElementById("recipeModal");
-
-    const details =
-        document.getElementById("recipeDetails");
-
-
-    details.innerHTML = `
-
-        <img
-            src="${meal.strMealThumb}"
-            alt="${meal.strMeal}"
-        >
-
-        <h2>
-            ${meal.strMeal}
-        </h2>
-
-        <p>
-            <strong>Category:</strong>
-            ${meal.strCategory || "Not available"}
-        </p>
-
-        <p>
-            <strong>Area:</strong>
-            ${meal.strArea || "Not available"}
-        </p>
-
-        <h3>
-            🥕 Ingredients
-        </h3>
-
-        <ul>
-            ${ingredients.join("")}
-        </ul>
-
-        <h3>
-            👨‍🍳 Instructions
-        </h3>
-
-        <p class="instructions">
-            ${meal.strInstructions}
-        </p>
-
-        ${
-            meal.strYoutube
-            ?
-            `
-            <h3>
-                🎥 Video Tutorial
-            </h3>
-
-            <a
-                href="${meal.strYoutube}"
-                target="_blank">
-
-                Watch on YouTube
-
-            </a>
-            `
-            :
-            ""
-        }
-
-        <br><br>
-
-        <button
-            class="view-btn"
-            onclick="shareRecipe('${meal.strMeal}')">
-
-            🔗 Share Recipe
-
-        </button>
-
-    `;
-
-
-    modal.style.display =
-        "block";
+    return ingredients;
 
 }
 
 
-// ==============================
-// CLOSE MODAL
-// ==============================
+/* =========================================================
+   FAVORITES
+   ========================================================= */
 
-function closeModal() {
+function toggleFavorite(
+    mealId,
+    button
+) {
 
-    document.getElementById(
-        "recipeModal"
-    ).style.display = "none";
-
-}
-
-
-// Close when clicking outside
-
-window.onclick = function(event) {
-
-    const modal =
-        document.getElementById(
-            "recipeModal"
+    const index =
+        favoriteIds.indexOf(
+            mealId
         );
 
-    if (event.target === modal) {
 
-        modal.style.display =
-            "none";
+    if (index === -1) {
 
-    }
-
-};
-
-
-// ==============================
-// FAVORITES
-// ==============================
-
-function saveFavorite(id) {
-
-    let favorites =
-        JSON.parse(
-            localStorage.getItem(
-                "favorites"
-            )
-        ) || [];
-
-
-    if (!favorites.includes(id)) {
-
-        favorites.push(id);
-
-        localStorage.setItem(
-            "favorites",
-            JSON.stringify(favorites)
+        favoriteIds.push(
+            mealId
         );
 
-        alert(
-            "❤️ Recipe saved to Favorites!"
+
+        showToast(
+            "Recipe saved to Favorites ❤️",
+            "♥"
         );
 
     }
 
     else {
 
-        alert(
-            "Recipe is already in Favorites."
+        favoriteIds.splice(
+            index,
+            1
         );
+
+
+        showToast(
+            "Recipe removed from Favorites",
+            "✓"
+        );
+
+    }
+
+
+    localStorage.setItem(
+        "recipeFavorites",
+        JSON.stringify(
+            favoriteIds
+        )
+    );
+
+
+    if (button) {
+
+        const saved =
+            favoriteIds.includes(
+                mealId
+            );
+
+
+        button.classList.toggle(
+            "saved",
+            saved
+        );
+
+
+        button.textContent =
+            saved
+                ? "♥"
+                : "♡";
 
     }
 
 }
 
 
-// ==============================
-// SHOW FAVORITES
-// ==============================
+/* =========================================================
+   FAVORITES PAGE
+   ========================================================= */
 
 async function showFavorites() {
 
-    document.getElementById(
-        "sectionTitle"
-    ).innerText =
-        "❤️ My Favorite Recipes";
+    setNavigation(
+        favoritesBtn
+    );
 
 
-    const favorites =
-        JSON.parse(
-            localStorage.getItem(
-                "favorites"
-            )
-        ) || [];
+    resultsTitle.textContent =
+        "My Favorite Recipes";
 
 
-    const container =
-        document.getElementById(
-            "recipeContainer"
+    if (
+        favoriteIds.length === 0
+    ) {
+
+        recipeContainer.innerHTML = "";
+
+        resultsCount.textContent =
+            "";
+
+        hideAllMessages();
+
+        emptyMessage.classList.remove(
+            "hidden"
         );
 
+        document.querySelector(
+            "#emptyMessage h3"
+        ).textContent =
+            "No favorite recipes yet";
 
-    if (favorites.length === 0) {
-
-        container.innerHTML =
-            `
-            <p class="loading">
-                You haven't saved any recipes yet ❤️
-            </p>
-            `;
+        document.querySelector(
+            "#emptyMessage p"
+        ).textContent =
+            "Save recipes by clicking the heart icon.";
 
         return;
 
     }
 
 
-    container.innerHTML =
-        `<p class="loading">
-            Loading favorites...
-        </p>`;
+    showLoading();
 
 
-    let meals = [];
+    try {
+
+        const recipePromises =
+            favoriteIds.map(
+                id =>
+                    fetchAPI(
+                        `lookup.php?i=${id}`
+                    )
+            );
 
 
-    for (const id of favorites) {
+        const responses =
+            await Promise.all(
+                recipePromises
+            );
 
-        try {
 
-            const response =
-                await fetch(
-                    API_URL +
-                    "lookup.php?i=" +
-                    id
+        const meals =
+            responses
+                .filter(
+                    response =>
+                        response.meals
+                )
+                .map(
+                    response =>
+                        response.meals[0]
                 );
 
-            const data =
-                await response.json();
 
-            if (data.meals) {
+        currentMeals =
+            meals;
 
-                meals.push(
-                    data.meals[0]
-                );
 
-            }
+        displayRecipes(
+            meals
+        );
 
-        }
 
-        catch (error) {
+        resultsCount.textContent =
+            `${meals.length} saved`;
 
-            console.log(error);
-
-        }
 
     }
 
+    catch (error) {
 
-    displayRecipes(meals);
+        showError(
+            "Unable to load your favorite recipes."
+        );
+
+    }
 
 }
 
 
-// ==============================
-// HOME
-// ==============================
+/* =========================================================
+   HOME
+   ========================================================= */
 
 function showHome() {
 
-    document.getElementById(
-        "sectionTitle"
-    ).innerText =
+    setNavigation(
+        homeBtn
+    );
+
+
+    searchInput.value =
+        "";
+
+    clearBtn.style.display =
+        "none";
+
+
+    resultsTitle.textContent =
         "Popular Recipes";
+
 
     loadPopularRecipes();
 
 }
 
 
-// ==============================
-// SHARE
-// ==============================
+/* =========================================================
+   RANDOM RECIPE
+   ========================================================= */
 
-async function shareRecipe(name) {
+async function loadRandomRecipe() {
+
+    showModalLoading();
+
+
+    try {
+
+        const data =
+            await fetchAPI(
+                "random.php"
+            );
+
+
+        if (
+            !data.meals ||
+            !data.meals[0]
+        ) {
+
+            showModalError();
+
+            return;
+
+        }
+
+
+        renderRecipeDetails(
+            data.meals[0]
+        );
+
+    }
+
+    catch (error) {
+
+        showModalError();
+
+    }
+
+}
+
+
+/* =========================================================
+   SHARE
+   ========================================================= */
+
+async function shareRecipe(
+    meal
+) {
 
     const shareData = {
 
-        title: name,
+        title:
+            meal.strMeal,
 
         text:
-            "Check out this delicious recipe: " +
-            name,
+            `Check out this recipe: ${meal.strMeal}`,
 
         url:
             window.location.href
 
     };
 
+
+    /* Native share */
 
     if (
         navigator.share
@@ -594,39 +1376,408 @@ async function shareRecipe(name) {
                 shareData
             );
 
-        }
 
-        catch (error) {
-
-            console.log(error);
-
-        }
-
-    }
-
-    else {
-
-        try {
-
-            await navigator.clipboard.writeText(
-                window.location.href
-            );
-
-            alert(
-                "🔗 Recipe link copied!"
-            );
+            return;
 
         }
 
         catch (error) {
 
-            alert(
-                "Copy the website URL to share this recipe."
-            );
+            /*
+             * User cancelled sharing.
+             * No error message needed.
+             */
+
+            if (
+                error.name ===
+                "AbortError"
+            ) {
+
+                return;
+
+            }
 
         }
 
     }
+
+
+    /* Clipboard fallback */
+
+    try {
+
+        await navigator.clipboard.writeText(
+            window.location.href
+        );
+
+
+        showToast(
+            "Website link copied!",
+            "🔗"
+        );
+
+    }
+
+    catch (error) {
+
+        showToast(
+            "Copy the website URL manually.",
+            "🔗"
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+function openModal() {
+
+    recipeModal.classList.add(
+        "show"
+    );
+
+
+    recipeModal.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+
+    document.body.style.overflow =
+        "hidden";
+
+}
+
+
+function closeModal() {
+
+    recipeModal.classList.remove(
+        "show"
+    );
+
+
+    recipeModal.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+
+    document.body.style.overflow =
+        "";
+
+}
+
+
+/* ================= MODAL LOADING ================= */
+
+function showModalLoading() {
+
+    openModal();
+
+
+    recipeDetails.innerHTML = `
+
+        <div class="loading">
+
+            <div class="spinner"></div>
+
+            <p>
+                Loading recipe...
+            </p>
+
+        </div>
+
+    `;
+
+}
+
+
+/* ================= MODAL ERROR ================= */
+
+function showModalError() {
+
+    openModal();
+
+
+    recipeDetails.innerHTML = `
+
+        <div class="message-box error">
+
+            <span>
+                ⚠️
+            </span>
+
+            <div>
+
+                <h3>
+                    Recipe unavailable
+                </h3>
+
+                <p>
+                    We couldn't load the recipe details.
+                    Please try again.
+                </p>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   UI HELPERS
+   ========================================================= */
+
+function showLoading() {
+
+    hideAllMessages();
+
+    recipeContainer.innerHTML =
+        "";
+
+    loading.classList.remove(
+        "hidden"
+    );
+
+}
+
+
+function showEmpty() {
+
+    hideAllMessages();
+
+    recipeContainer.innerHTML =
+        "";
+
+    emptyMessage.classList.remove(
+        "hidden"
+    );
+
+    resultsCount.textContent =
+        "";
+
+}
+
+
+function showError(
+    message
+) {
+
+    hideAllMessages();
+
+    recipeContainer.innerHTML =
+        "";
+
+    errorMessage.classList.remove(
+        "hidden"
+    );
+
+    errorText.textContent =
+        message;
+
+    resultsCount.textContent =
+        "";
+
+}
+
+
+function hideAllMessages() {
+
+    loading.classList.add(
+        "hidden"
+    );
+
+    emptyMessage.classList.add(
+        "hidden"
+    );
+
+    errorMessage.classList.add(
+        "hidden"
+    );
+
+}
+
+
+/* ================= NAVIGATION ================= */
+
+function setNavigation(
+    activeButton
+) {
+
+    document
+        .querySelectorAll(
+            ".nav-btn"
+        )
+        .forEach(button => {
+
+            button.classList.remove(
+                "active"
+            );
+
+        });
+
+
+    activeButton.classList.add(
+        "active"
+    );
+
+}
+
+
+/* ================= CATEGORY ACTIVE ================= */
+
+function setActiveCategory(
+    category
+) {
+
+    document
+        .querySelectorAll(
+            ".category-btn"
+        )
+        .forEach(button => {
+
+            button.classList.toggle(
+                "active",
+                button.dataset.category ===
+                category
+            );
+
+        });
+
+}
+
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+let toastTimer;
+
+
+function showToast(
+    message,
+    icon = "✓"
+) {
+
+    toastMessage.textContent =
+        message;
+
+    toastIcon.textContent =
+        icon;
+
+
+    toast.classList.add(
+        "show"
+    );
+
+
+    clearTimeout(
+        toastTimer
+    );
+
+
+    toastTimer =
+        setTimeout(
+            function () {
+
+                toast.classList.remove(
+                    "show"
+                );
+
+            },
+            2500
+        );
+
+}
+
+
+/* =========================================================
+   CATEGORY EMOJIS
+   ========================================================= */
+
+function getCategoryEmoji(
+    category
+) {
+
+    const emojis = {
+
+        "Beef": "🥩",
+
+        "Breakfast": "🍳",
+
+        "Chicken": "🍗",
+
+        "Dessert": "🍰",
+
+        "Goat": "🐐",
+
+        "Lamb": "🍖",
+
+        "Miscellaneous": "🍽️",
+
+        "Pasta": "🍝",
+
+        "Pork": "🥓",
+
+        "Seafood": "🦐",
+
+        "Side": "🥗",
+
+        "Starter": "🥟",
+
+        "Vegan": "🌱",
+
+        "Vegetarian": "🥦",
+
+        "All": "🍽️"
+
+    };
+
+
+    return (
+        emojis[category] ||
+        "🍴"
+    );
+
+}
+
+
+/* =========================================================
+   SECURITY / TEXT SAFETY
+   ========================================================= */
+
+function escapeHTML(
+    value
+) {
+
+    if (
+        value === null ||
+        value === undefined
+    ) {
+
+        return "";
+
+    }
+
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+
+    div.textContent =
+        String(value);
+
+
+    return div.innerHTML;
 
 }
 ```
